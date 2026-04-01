@@ -1,0 +1,26 @@
+# Database (contains real data)
+*.db
+*.db-shm
+*.db-wal
+
+# Env files
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Logs
+*.log
+/worker_state.json
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

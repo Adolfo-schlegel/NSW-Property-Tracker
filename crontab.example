@@ -1,0 +1,12 @@
+# NSW Property Tracker — Crontab
+# Edit with: crontab -e
+# Adjust /path/to/project and python path as needed
+
+# Scrape both sources every day at 6 AM AEDT (20:00 UTC previous day)
+0 20 * * * cd /path/to/nsw-property-tracker && python main.py scrape >> logs/cron.log 2>&1
+
+# Sync Google Sheets at 7 AM AEDT (21:00 UTC)
+0 21 * * * cd /path/to/nsw-property-tracker && python main.py sheets >> logs/cron.log 2>&1
+
+# Send daily Telegram report at 9 AM AEDT (23:00 UTC previous day)
+0 23 * * * cd /path/to/nsw-property-tracker && python main.py report >> logs/cron.log 2>&1

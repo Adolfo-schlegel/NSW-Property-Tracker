@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title data-i18n="page_title">NSW Property Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root{
+      --primary:#1a3a5c;--accent:#2980b9;--accent2:#27ae60;--danger:#e74c3c;
+      --warning:#f39c12;--light-bg:#f0f4f8;--card-bg:#fff;--border:#dde3ea;
+      --text:#1e2a38;--muted:#7f8c9a;--green-hdr:#a8d5a2;--pink-hdr:#f4b8cc;
+      --row-today:#e8faf0;--row-60:#fef9e7;--row-90:#fdecea;
+      --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter','PingFang SC','Microsoft YaHei','Segoe UI',sans-serif;font-size:13px;background:var(--light-bg);color:var(--text)}
+    .layout{display:flex;min-height:100vh}
+
+    /* Sidebar */
+    .sidebar{width:220px;min-width:220px;background:var(--primary);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:100}
+    .sidebar-logo{padding:20px 18px 14px;border-bottom:1px solid rgba(255,255,255,.1)}
+    .sidebar-logo h1{font-size:15px;font-weight:700;line-height:1.4}
+    .sidebar-logo p{font-size:10px;opacity:.6;margin-top:2px}
+    .sidebar-stats{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.1)}
+    .sidebar-stats h3{font-size:10px;text-transform:uppercase;letter-spacing:.8px;opacity:.5;margin-bottom:10px}
+    .s-stat{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .s-stat .lbl{font-size:12px;opacity:.8}
+    .s-stat .val{font-size:16px;font-weight:700}
+    .s-stat .val.green{color:#6ee78a}.s-stat .val.red{color:#ff7675}.s-stat .val.yellow{color:#ffeaa7}
+    .sidebar-links{padding:14px 10px;flex:1}
+    .sidebar-links h3{font-size:10px;text-transform:uppercase;letter-spacing:.8px;opacity:.5;padding:0 8px;margin-bottom:8px}
+    .quick-filter{display:block;padding:8px 12px;border-radius:6px;color:rgba(255,255,255,.8);font-size:12px;cursor:pointer;margin-bottom:2px;text-decoration:none;transition:background .15s;border:none;background:transparent;width:100%;text-align:left}
+    .quick-filter:hover,.quick-filter.active{background:rgba(255,255,255,.15);color:#fff}
+    .quick-filter .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px}
+    .lang-toggle{display:flex;gap:6px;padding:14px 18px;border-top:1px solid rgba(255,255,255,.1)}
+    .lang-btn{flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:transparent;color:rgba(255,255,255,.7);font-size:12px;cursor:pointer;font-weight:600;transition:all .15s}
+    .lang-btn.active,.lang-btn:hover{background:rgba(255,255,255,.2);color:#fff;border-color:rgba(255,255,255,.5)}
+    .sidebar-footer{padding:10px 18px 14px;font-size:10px;opacity:.4}
+
+    /* Main */
+    .main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+    /* Top bar */
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:50;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+    .topbar-left{display:flex;align-items:center;gap:12px}
+    .topbar-left h2{font-size:16px;font-weight:700;color:var(--primary)}
+    .topbar-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+    /* Topbar lang toggle (visible on mobile when sidebar hidden) */
+    .topbar-lang{display:none;gap:4px}
+    .topbar-lang-btn{padding:5px 10px;border-radius:6px;border:1.5px solid var(--border);background:#f0f4f8;color:var(--text);font-size:11px;cursor:pointer;font-weight:600;transition:all .15s}
+    .topbar-lang-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+    @media(max-width:900px){.topbar-lang{display:flex}}
+
+    /* Buttons */
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;white-space:nowrap}
+    .btn:active{transform:scale(.97)}
+    .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#2471a3}
+    .btn-success{background:var(--accent2);color:#fff}.btn-success:hover{background:#219a52}
+    .btn-danger{background:var(--danger);color:#fff}.btn-danger:hover{background:#c0392b}
+    .btn-ghost{background:#f0f4f8;color:var(--text);border:1px solid var(--border)}.btn-ghost:hover{background:#e0e8f0}
+    .btn-warn{background:#fff3cd;color:#856404;border:1px solid #ffc107}.btn-warn:hover{background:#ffe699}
+
+    /* Filter bar */
+    .filterbar{background:#fff;padding:14px 24px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+    .fg{display:flex;flex-direction:column;gap:4px}
+    .fg label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+    .fg input,.fg select{height:34px;padding:0 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;background:#fafbfc;color:var(--text);transition:border .15s}
+    .fg input:focus,.fg select:focus{outline:none;border-color:var(--accent)}
+    .fg input[type=text]{width:180px}.fg input[type=date]{width:138px}.fg select{width:130px}.fg input[type=number]{width:80px}
+
+    /* Content */
+    .content{padding:20px 24px;flex:1}
+
+    /* Cards */
+    .summary-cards{display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+    .card{background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);padding:16px 20px;flex:1;min-width:130px}
+    .card-icon{font-size:22px;margin-bottom:6px}
+    .card-val{font-size:28px;font-weight:800;color:var(--primary);line-height:1}
+    .card-lbl{font-size:11px;color:var(--muted);margin-top:4px}
+    .card.c-green .card-val{color:#27ae60}.card.c-red .card-val{color:#e74c3c}
+    .card.c-yellow .card-val{color:#d68910}.card.c-blue .card-val{color:#2980b9}
+
+    /* Legend */
+    .legend{display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+    .leg{display:flex;align-items:center;gap:6px}
+    .leg-dot{width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.1)}
+
+    /* Table */
+    .tbl-wrap{overflow-x:auto;border-radius:var(--radius);box-shadow:var(--shadow)}
+    table{width:100%;border-collapse:collapse;background:#fff;font-size:12px}
+    thead th{background:var(--primary);color:#fff;padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;cursor:pointer;user-select:none}
+    thead th:hover{background:#254a70}
+    thead th.pink-h{background:#c0392b}
+    thead th .si{opacity:.4;margin-left:4px;font-size:9px}
+    thead th.asc .si::after{content:'▲'}
+    thead th.desc .si::after{content:'▼'}
+    thead th:not(.asc):not(.desc) .si::after{content:'⇅'}
+    tbody tr{border-bottom:1px solid #edf0f4;transition:background .1s;cursor:pointer}
+    tbody tr:hover td{background:#f0f6ff!important}
+    tbody td{padding:9px 12px;vertical-align:middle}
+    tr.r-today td{background:var(--row-today)}
+    tr.r-90 td{background:var(--row-90)}
+    tr.r-60 td{background:var(--row-60)}
+    .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+    .b-new{background:#d5f5e3;color:#1e8449}.b-60{background:#fdebd0;color:#d35400}.b-90{background:#fadbd8;color:#c0392b}.b-days{background:#eaf4fb;color:#1a5276}
+    .view-link{color:var(--accent);font-weight:600;text-decoration:none;font-size:11px}
+    .view-link:hover{text-decoration:underline}
+    .price-cell{font-weight:700;color:var(--primary);white-space:nowrap}
+    .num-cell{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+    .type-chip{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;background:#edf2f7;color:#4a5568;font-weight:600}
+    .tbl-info{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+    .tbl-info .count{font-size:13px;color:var(--muted)}
+    .tbl-info .count strong{color:var(--text)}
+    .empty{text-align:center;padding:56px 24px;color:var(--muted)}
+    .empty .icon{font-size:40px;margin-bottom:12px;opacity:.4}
+
+    /* Toast */
+    .toast{position:fixed;bottom:24px;right:24px;background:#1e2a38;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
+    .toast.show{transform:translateY(0);opacity:1}
+
+    @media print{
+      .sidebar,.topbar,.filterbar,.btn,.legend{display:none!important}
+      body{background:#fff;font-size:11px}
+      .content{padding:0}
+      table{box-shadow:none;font-size:10px}
+      thead th{background:#1a3a5c!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      tr.r-today td{background:#e8faf0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      tr.r-90 td{background:#fdecea!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      tr.r-60 td{background:#fef9e7!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .tbl-wrap{border-radius:0;box-shadow:none;overflow:visible}
+    }
+    @media(max-width:900px){
+      .sidebar{display:none}
+      .topbar{padding:10px 14px}
+      .filterbar{padding:10px 14px}
+      .content{padding:12px 14px}
+      .summary-cards{gap:8px}
+      .card{min-width:100px;padding:12px}
+      .card-val{font-size:22px}
+      .col-h-baths,.col-baths,.col-h-source,.col-source{display:none}
+    }
+  </style>
+</head>
+<body>
+
+<div id="toast" class="toast"></div>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h1>🏠 <span data-i18n="app_title">NSW Property<br>Tracker</span></h1>
+    <p><span data-i18n="last_updated">Last updated</span>: {{ today }}</p>
+  </div>
+  <div class="sidebar-stats">
+    <h3 data-i18n="overview">Overview</h3>
+    <div class="s-stat"><span class="lbl" data-i18n="total_active">Total Active</span><span class="val">{{ stats.total }}</span></div>
+    <div class="s-stat"><span class="lbl" data-i18n="new_today">New Today</span><span class="val green">{{ stats.today }}</span></div>
+    <div class="s-stat"><span class="lbl" data-i18n="days_30">≥ 30 Days</span><span class="val yellow">{{ stats.aged_30 }}</span></div>
+    <div class="s-stat"><span class="lbl" data-i18n="days_60">≥ 60 Days</span><span class="val red">{{ stats.aged_60 }}</span></div>
+  </div>
+  <div class="sidebar-links">
+    <h3 data-i18n="quick_filters">Quick Filters</h3>
+    <a href="/" class="quick-filter {% if not filters.get('aged') and not filters.get('from') %}active{% endif %}">
+      <span class="dot" style="background:#2980b9"></span><span data-i18n="all_listings">All Listings</span>
+    </a>
+    <a href="/?from={{ today }}&to={{ today }}" class="quick-filter">
+      <span class="dot" style="background:#27ae60"></span><span data-i18n="listed_today">Listed Today</span>
+    </a>
+    <a href="/?aged=30" class="quick-filter">
+      <span class="dot" style="background:#f39c12"></span><span data-i18n="qf_30">30+ Days on Market</span>
+    </a>
+    <a href="/?aged=60" class="quick-filter">
+      <span class="dot" style="background:#e74c3c"></span><span data-i18n="qf_60">60+ Days on Market</span>
+    </a>
+    <a href="/?postcodes=2110,2111,2112,2113,2114,2115" class="quick-filter">
+      <span class="dot" style="background:#8e44ad"></span><span data-i18n="ryde_area">Ryde Area (2110–2115)</span>
+    </a>
+    <a href="/?postcodes=2110,2111" class="quick-filter">
+      <span class="dot" style="background:#16a085"></span><span data-i18n="hunters_area">Hunters Hill / Gladesville</span>
+    </a>
+    <a href="/?sort=price_value&dir=ASC" class="quick-filter">
+      <span class="dot" style="background:#2c3e50"></span><span data-i18n="cheapest">Cheapest First</span>
+    </a>
+    <a href="/?sort=price_value&dir=DESC" class="quick-filter">
+      <span class="dot" style="background:#2c3e50"></span><span data-i18n="priciest">Most Expensive</span>
+    </a>
+  </div>
+  <div class="lang-toggle">
+    <button class="lang-btn active" id="btnEn" onclick="setLang('en')">🇦🇺 EN</button>
+    <button class="lang-btn" id="btnZh" onclick="setLang('zh')">🇨🇳 中文</button>
+  </div>
+  <div class="sidebar-footer" data-i18n="data_source">Data source: Domain.com.au (sample)</div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <h2 data-i18n="property_listings">Property Listings</h2>
+      <span style="font-size:11px;color:var(--muted)">{{ listings|length }} <span data-i18n="results">results</span></span>
+    </div>
+    <div class="topbar-actions">
+      <div class="topbar-lang">
+        <button class="topbar-lang-btn active" id="topBtnEn" onclick="setLang('en')">🇦🇺 EN</button>
+        <button class="topbar-lang-btn" id="topBtnZh" onclick="setLang('zh')">🇨🇳 中文</button>
+      </div>
+      <button class="btn btn-ghost" onclick="exportCSV()">⬇ <span data-i18n="btn_csv">CSV</span></button>
+      <button class="btn btn-danger" onclick="exportPDF()">📄 <span data-i18n="btn_pdf">Export PDF</span></button>
+      <button class="btn btn-ghost" onclick="window.print()">🖨 <span data-i18n="btn_print">Print</span></button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <form id="filterForm" method="GET" action="/" class="filterbar">
+    <div class="fg">
+      <label data-i18n="lbl_search">Search</label>
+      <input type="text" name="q" id="searchInput" placeholder="" data-placeholder-i18n="ph_search" value="{{ filters.get('q','') }}" autocomplete="off"/>
+    </div>
+    <div class="fg">
+      <label data-i18n="lbl_postcodes">Postcodes</label>
+      <input type="text" name="postcodes" placeholder="2111,2112,2113" value="{{ filters.get('postcodes','') }}" style="width:150px"/>
+    </div>
+    <div class="fg">
+      <label data-i18n="lbl_type">Type</label>
+      <select name="type">
+        <option value="" data-i18n="opt_all">All</option>
+        <option value="sale" {% if filters.get('type')=='sale' %}selected{% endif %} data-i18n="opt_sale">Sale</option>
+        <option value="rent" {% if filters.get('type')=='rent' %}selected{% endif %} data-i18n="opt_rent">Rent</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label data-i18n="lbl_from">Listed From</label>
+      <input type="date" name="from" value="{{ filters.get('from','') }}"/>
+    </div>
+    <div class="fg">
+      <label data-i18n="lbl_to">To</label>
+      <input type="date" name="to" value="{{ filters.get('to','') }}"/>
+    </div>
+    <div class="fg">
+      <label data-i18n="lbl_beds">Min Beds</label>
+      <input type="number" name="beds" min="1" max="10" value="{{ filters.get('beds','') }}"/>
+    </div>
+    <div class="fg">
+      <label data-i18n="lbl_maxprice">Max Price</label>
+      <input type="text" name="max_price" placeholder="1500000" value="{{ filters.get('max_price','') }}" style="width:120px"/>
+    </div>
+    <div class="fg">
+      <label data-i18n="lbl_sort">Sort</label>
+      <select name="sort">
+        <option value="first_seen"     {% if filters.get('sort','first_seen')=='first_seen' %}selected{% endif %} data-i18n="sort_date">Listed date</option>
+        <option value="days_on_market" {% if filters.get('sort')=='days_on_market' %}selected{% endif %} data-i18n="sort_days">Days on market</option>
+        <option value="price_value"    {% if filters.get('sort')=='price_value' %}selected{% endif %} data-i18n="sort_price">Price</option>
+        <option value="suburb"         {% if filters.get('sort')=='suburb' %}selected{% endif %} data-i18n="sort_suburb">Suburb</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label data-i18n="lbl_dir">Dir</label>
+      <select name="dir" style="width:95px">
+        <option value="DESC" {% if filters.get('dir','DESC')=='DESC' %}selected{% endif %} data-i18n="dir_desc">↓ Newest</option>
+        <option value="ASC"  {% if filters.get('dir')=='ASC' %}selected{% endif %} data-i18n="dir_asc">↑ Oldest</option>
+      </select>
+    </div>
+    <div class="fg" style="flex-direction:row;align-items:flex-end;gap:6px">
+      <button class="btn btn-primary" type="submit" data-i18n="btn_filter">Filter</button>
+      <a href="/tracker/" class="btn btn-ghost" data-i18n="btn_clear">Clear</a>
+    </div>
+  </form>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Cards -->
+    <div class="summary-cards">
+      <div class="card c-blue"><div class="card-icon">🏘</div><div class="card-val">{{ stats.total }}</div><div class="card-lbl" data-i18n="active_listings">Active Listings</div></div>
+      <div class="card c-green"><div class="card-icon">✨</div><div class="card-val">{{ stats.today }}</div><div class="card-lbl" data-i18n="new_today">New Today</div></div>
+      <div class="card c-yellow"><div class="card-icon">⏳</div><div class="card-val">{{ stats.aged_30 }}</div><div class="card-lbl" data-i18n="card_30">30+ Days</div></div>
+      <div class="card c-red"><div class="card-icon">🔴</div><div class="card-val">{{ stats.aged_60 }}</div><div class="card-lbl" data-i18n="card_60">60+ Days (Stale)</div></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:var(--row-today)"></div><span data-i18n="leg_today">Listed today</span></div>
+      <div class="leg"><div class="leg-dot" style="background:var(--row-60)"></div><span data-i18n="leg_60">60–89 days on market</span></div>
+      <div class="leg"><div class="leg-dot" style="background:var(--row-90)"></div><span data-i18n="leg_90">90+ days on market</span></div>
+    </div>
+
+    <!-- Count -->
+    <div class="tbl-info">
+      <span class="count"><span data-i18n="showing">Showing</span> <strong>{{ listings|length }}</strong> <span data-i18n="properties">properties</span>{% if filters.get('postcodes') %} — postcodes {{ filters.get('postcodes') }}{% endif %}</span>
+      <span style="font-size:11px;color:var(--muted)" data-i18n="click_hint">Click any row to open listing</span>
+    </div>
+
+    {% if listings %}
+    <div class="tbl-wrap">
+      <table id="mainTable">
+        <thead>
+          <tr>
+            <th style="width:36px">#</th>
+            <th onclick="sortTable(1)"><span data-i18n="th_stno">Street №</span><span class="si"></span></th>
+            <th onclick="sortTable(2)"><span data-i18n="th_stname">Street Name</span><span class="si"></span></th>
+            <th><span data-i18n="th_sttype">Type</span></th>
+            <th class="pink-h" onclick="sortTable(4)"><span data-i18n="th_suburb">Suburb</span><span class="si"></span></th>
+            <th class="pink-h" onclick="sortTable(5)"><span data-i18n="th_postcode">Postcode</span><span class="si"></span></th>
+            <th onclick="sortTable(6)"><span data-i18n="th_listed">Listed Date</span><span class="si"></span></th>
+            <th onclick="sortTable(7)"><span data-i18n="th_days">Days</span><span class="si"></span></th>
+            <th onclick="sortTable(8)"><span data-i18n="th_price">Price</span><span class="si"></span></th>
+            <th><span data-i18n="th_beds">Beds</span></th>
+            <th class="col-h-baths"><span data-i18n="th_baths">Baths</span></th>
+            <th><span data-i18n="th_proptype">Prop. Type</span></th>
+            <th class="col-h-source"><span data-i18n="th_source">Source</span></th>
+            <th><span data-i18n="th_link">Link</span></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+        {% for p in listings %}
+        {% set days = p.days_on_market or 0 %}
+        {% set is_today = p.first_seen == today %}
+        {% set parts = p.address.split(',')[0].split(' ') if p.address else [] %}
+        <tr class="{{ 'r-today' if is_today else ('r-90' if days>=90 else ('r-60' if days>=60 else '')) }}"
+            data-url="{{ p.url or '' }}" onclick="openListing(this)">
+          <td style="text-align:center;color:var(--muted);font-size:11px">{{ loop.index }}</td>
+          <td class="num-cell">{{ parts[0] if parts else '—' }}</td>
+          <td>{{ parts[1:-1]|join(' ') if parts|length>2 else (parts[1] if parts|length>1 else '—') }}</td>
+          <td><span class="type-chip">{{ parts[-1] if parts else '—' }}</span></td>
+          <td style="font-weight:600">{{ p.suburb or '—' }}</td>
+          <td style="text-align:center;color:var(--muted)">{{ p.postcode or '—' }}</td>
+          <td style="white-space:nowrap">
+            {{ p.first_seen }}
+            {% if is_today %}<span class="badge b-new" data-i18n="badge_new">NEW</span>{% endif %}
+          </td>
+          <td style="text-align:center">
+            {% if days>=90 %}<span class="badge b-90">{{ days }}d</span>
+            {% elif days>=60 %}<span class="badge b-60">{{ days }}d</span>
+            {% else %}<span class="badge b-days">{{ days }}d</span>{% endif %}
+          </td>
+          <td class="price-cell">{{ p.price or '—' }}</td>
+          <td style="text-align:center">{{ p.bedrooms or '—' }}</td>
+          <td class="col-baths" style="text-align:center">{{ p.bathrooms or '—' }}</td>
+          <td style="color:var(--muted)">{{ p.property_type or '—' }}</td>
+          <td class="col-source" style="font-size:11px;color:var(--muted);text-transform:capitalize">{{ p.source or '—' }}</td>
+          <td onclick="event.stopPropagation()">
+            {% if p.url %}<a class="view-link" href="{{ p.url }}" target="_blank" rel="noopener" data-i18n="view_link">View ↗</a>{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="icon">🔍</div>
+      <p data-i18n="no_results">No properties found matching your filters.</p>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// TRANSLATIONS
+// ═══════════════════════════════════════
+const I18N = {
+  en: {
+    page_title:'NSW Property Tracker', app_title:'NSW Property\nTracker',
+    last_updated:'Last updated', overview:'Overview', total_active:'Total Active',
+    new_today:'New Today', days_30:'≥ 30 Days', days_60:'≥ 60 Days',
+    quick_filters:'Quick Filters', all_listings:'All Listings', listed_today:'Listed Today',
+    qf_30:'30+ Days on Market', qf_60:'60+ Days on Market', ryde_area:'Ryde Area (2110–2115)',
+    hunters_area:'Hunters Hill / Gladesville', cheapest:'Cheapest First', priciest:'Most Expensive',
+    data_source:'Data source: Domain.com.au', property_listings:'Property Listings', results:'results',
+    btn_csv:'CSV', btn_pdf:'Export PDF', btn_print:'Print',
+    lbl_search:'Search', ph_search:'Address or suburb…', lbl_postcodes:'Postcodes',
+    lbl_type:'Type', opt_all:'All', opt_sale:'Sale', opt_rent:'Rent',
+    lbl_from:'Listed From', lbl_to:'To', lbl_beds:'Min Beds', lbl_maxprice:'Max Price',
+    lbl_sort:'Sort', sort_date:'Listed date', sort_days:'Days on market', sort_price:'Price', sort_suburb:'Suburb',
+    lbl_dir:'Dir', dir_desc:'↓ Newest', dir_asc:'↑ Oldest',
+    btn_filter:'Filter', btn_clear:'Clear',
+    active_listings:'Active Listings', card_30:'30+ Days', card_60:'60+ Days (Stale)',
+    leg_today:'Listed today', leg_60:'60–89 days on market', leg_90:'90+ days on market',
+    showing:'Showing', properties:'properties', click_hint:'Click any row to open listing',
+    th_stno:'Street №', th_stname:'Street Name', th_sttype:'Type', th_suburb:'Suburb',
+    th_postcode:'Postcode', th_listed:'Listed Date', th_days:'Days', th_price:'Price',
+    th_beds:'Beds', th_baths:'Baths', th_proptype:'Prop. Type', th_source:'Source', th_link:'Link',
+    badge_new:'NEW', view_link:'View ↗', no_results:'No properties found matching your filters.',
+    toast_csv:'✅ CSV downloaded', toast_pdf:'✅ PDF exported', toast_copy:'✅ Copied to clipboard',
+  },
+  zh: {
+    page_title:'NSW房产追踪器', app_title:'NSW\n房产追踪器',
+    last_updated:'最后更新', overview:'概览', total_active:'活跃房源',
+    new_today:'今日新增', days_30:'≥ 30天', days_60:'≥ 60天',
+    quick_filters:'快速筛选', all_listings:'全部房源', listed_today:'今日上市',
+    qf_30:'在市超30天', qf_60:'在市超60天', ryde_area:'赖德区 (2110–2115)',
+    hunters_area:'猎人山 / 格莱兹维尔', cheapest:'价格从低到高', priciest:'价格从高到低',
+    data_source:'数据来源：Domain.com.au', property_listings:'房产列表', results:'条结果',
+    btn_csv:'导出CSV', btn_pdf:'导出PDF', btn_print:'打印',
+    lbl_search:'搜索', ph_search:'地址或郊区…', lbl_postcodes:'邮政编码',
+    lbl_type:'类型', opt_all:'全部', opt_sale:'出售', opt_rent:'出租',
+    lbl_from:'上市日期从', lbl_to:'至', lbl_beds:'最少卧室', lbl_maxprice:'最高价格',
+    lbl_sort:'排序', sort_date:'上市日期', sort_days:'在市天数', sort_price:'价格', sort_suburb:'郊区',
+    lbl_dir:'方向', dir_desc:'↓ 最新', dir_asc:'↑ 最旧',
+    btn_filter:'筛选', btn_clear:'清除',
+    active_listings:'活跃房源', card_30:'超30天', card_60:'超60天（滞销）',
+    leg_today:'今日上市', leg_60:'在市60–89天', leg_90:'在市超90天',
+    showing:'显示', properties:'条房源', click_hint:'点击任意行查看房源',
+    th_stno:'门牌号', th_stname:'街道名', th_sttype:'类型', th_suburb:'郊区',
+    th_postcode:'邮编', th_listed:'上市日期', th_days:'天数', th_price:'价格',
+    th_beds:'卧室', th_baths:'浴室', th_proptype:'房产类型', th_source:'来源', th_link:'链接',
+    badge_new:'新', view_link:'查看 ↗', no_results:'未找到符合条件的房源。',
+    toast_csv:'✅ CSV已下载', toast_pdf:'✅ PDF已导出', toast_copy:'✅ 已复制到剪贴板',
+  }
+}
+
+let currentLang = localStorage.getItem('tracker_lang') || 'en'
+
+function setLang(lang) {
+  currentLang = lang
+  localStorage.setItem('tracker_lang', lang)
+  applyLang()
+  // Sidebar buttons
+  document.getElementById('btnEn').classList.toggle('active', lang==='en')
+  document.getElementById('btnZh').classList.toggle('active', lang==='zh')
+  // Topbar buttons (mobile)
+  const tE = document.getElementById('topBtnEn')
+  const tZ = document.getElementById('topBtnZh')
+  if (tE) tE.classList.toggle('active', lang==='en')
+  if (tZ) tZ.classList.toggle('active', lang==='zh')
+}
+
+function applyLang() {
+  const t = I18N[currentLang]
+  document.documentElement.lang = currentLang
+
+  // text nodes
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n
+    if (t[key] !== undefined) el.textContent = t[key]
+  })
+
+  // placeholders
+  document.querySelectorAll('[data-placeholder-i18n]').forEach(el => {
+    const key = el.dataset.placeholderI18n
+    if (t[key]) el.placeholder = t[key]
+  })
+
+  // page title
+  if (t.page_title) document.title = t.page_title
+}
+
+// ═══════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════
+function showToast(msgKey) {
+  const t = I18N[currentLang]
+  const el = document.getElementById('toast')
+  el.textContent = t[msgKey] || msgKey
+  el.classList.add('show')
+  setTimeout(() => el.classList.remove('show'), 2800)
+}
+
+// ═══════════════════════════════════════
+// ROW CLICK
+// ═══════════════════════════════════════
+function openListing(row) {
+  const url = row.dataset.url
+  if (url) window.open(url, '_blank')
+}
+
+// ═══════════════════════════════════════
+// SORT
+// ═══════════════════════════════════════
+let sortState = {}
+function sortTable(colIdx) {
+  const tbody = document.getElementById('tableBody')
+  if (!tbody) return
+  const rows = Array.from(tbody.querySelectorAll('tr'))
+  const dir  = sortState[colIdx] === 'asc' ? 'desc' : 'asc'
+  sortState  = {}
+  sortState[colIdx] = dir
+
+  document.querySelectorAll('thead th').forEach((th, i) => {
+    th.classList.remove('asc','desc')
+    if (i === colIdx) th.classList.add(dir)
+  })
+
+  rows.sort((a, b) => {
+    const av = a.cells[colIdx]?.innerText.trim() || ''
+    const bv = b.cells[colIdx]?.innerText.trim() || ''
+    const an = parseFloat(av.replace(/[^0-9.]/g,''))
+    const bn = parseFloat(bv.replace(/[^0-9.]/g,''))
+    if (!isNaN(an) && !isNaN(bn)) return dir==='asc' ? an-bn : bn-an
+    return dir==='asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+  })
+
+  rows.forEach((r,i) => {
+    tbody.appendChild(r)
+    if (r.cells[0]) r.cells[0].textContent = i+1
+  })
+}
+
+// ═══════════════════════════════════════
+// CSV EXPORT
+// ═══════════════════════════════════════
+function exportCSV() {
+  const table = document.getElementById('mainTable')
+  if (!table) return
+
+  const headers = Array.from(table.querySelectorAll('thead th'))
+    .slice(0,13).map(th => '"'+th.innerText.replace(/[⇅▲▼↓↑]/g,'').trim()+'"')
+
+  const rows = Array.from(table.querySelectorAll('tbody tr')).map(tr =>
+    Array.from(tr.cells).slice(0,13).map(td => {
+      return '"'+td.innerText.replace(/[\n\r]+/g,' ').trim().replace(/"/g,'""')+'"'
+    })
+  )
+
+  const csv = [headers,...rows].map(r=>r.join(',')).join('\n')
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'})
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `nsw-properties-{{ today }}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  showToast('toast_csv')
+}
+
+// ═══════════════════════════════════════
+// PDF EXPORT
+// ═══════════════════════════════════════
+function exportPDF() {
+  if (!window.jspdf) { showToast('toast_pdf'); return }
+  const { jsPDF } = window.jspdf
+  const doc = new jsPDF({orientation:'landscape',unit:'mm',format:'a4'})
+  const t   = I18N[currentLang]
+
+  // Header band
+  doc.setFillColor(26,58,92)
+  doc.rect(0,0,297,18,'F')
+  doc.setTextColor(255,255,255)
+  doc.setFontSize(13)
+  doc.setFont('helvetica','bold')
+  doc.text(t.page_title || 'NSW Property Tracker',14,12)
+  doc.setFontSize(9)
+  doc.setFont('helvetica','normal')
+  doc.text('{{ today }}',260,12)
+
+  // Stats row
+  doc.setTextColor(40,40,40)
+  doc.setFontSize(9)
+  const stats=[
+    [t.total_active,'{{ stats.total }}'],
+    [t.new_today,'{{ stats.today }}'],
+    [t.card_30,'{{ stats.aged_30 }}'],
+    [t.card_60,'{{ stats.aged_60 }}'],
+  ]
+  stats.forEach(([lbl,val],i)=>{
+    const x=14+i*55
+    doc.setFont('helvetica','bold')
+    doc.setTextColor(40,40,40)
+    doc.text(val,x,27)
+    doc.setFont('helvetica','normal')
+    doc.setTextColor(100,100,100)
+    doc.text(lbl,x,32)
+  })
+
+  // Table
+  const table = document.getElementById('mainTable')
+  if (!table) return
+  const cols=[0,1,2,3,4,5,6,7,8,9,10,11]
+  const headers = Array.from(table.querySelectorAll('thead th'))
+    .filter((_,i)=>cols.includes(i))
+    .map(th=>th.innerText.replace(/[⇅▲▼↓↑]/g,'').trim())
+  const body = Array.from(table.querySelectorAll('tbody tr')).map(tr=>
+    Array.from(tr.cells).filter((_,i)=>cols.includes(i))
+      .map(td=>td.innerText.replace(/[\n\r]+/g,' ').trim())
+  )
+  const rowColors = Array.from(table.querySelectorAll('tbody tr')).map(tr=>{
+    if(tr.classList.contains('r-today')) return [232,250,240]
+    if(tr.classList.contains('r-90'))    return [253,236,234]
+    if(tr.classList.contains('r-60'))    return [254,249,231]
+    return [255,255,255]
+  })
+
+  doc.autoTable({
+    head:[headers], body,
+    startY:37,
+    styles:{fontSize:7.5,cellPadding:2.5},
+    headStyles:{fillColor:[26,58,92],textColor:255,fontStyle:'bold'},
+    columnStyles:{0:{cellWidth:8},1:{cellWidth:14},5:{cellWidth:16},6:{cellWidth:22},7:{cellWidth:11},8:{cellWidth:24}},
+    didParseCell:(data)=>{
+      if(data.section==='body'){
+        const c=rowColors[data.row.index]
+        if(c) data.cell.styles.fillColor=c
+      }
+    },
+    margin:{left:14,right:14},
+  })
+
+  const pageCount = doc.internal.getNumberOfPages()
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i)
+    doc.setFontSize(8)
+    doc.setTextColor(150)
+    doc.text(`${t.page_title} — Page ${i}/${pageCount}`,14,doc.internal.pageSize.height-6)
+  }
+
+  doc.save(`nsw-properties-{{ today }}.pdf`)
+  showToast('toast_pdf')
+}
+
+// ═══════════════════════════════════════
+// LIVE SEARCH (Enter key)
+// ═══════════════════════════════════════
+document.getElementById('searchInput')?.addEventListener('keydown', e=>{
+  if(e.key==='Enter') document.getElementById('filterForm').submit()
+})
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  applyLang()
+  // Sidebar
+  document.getElementById('btnEn').classList.toggle('active', currentLang==='en')
+  document.getElementById('btnZh').classList.toggle('active', currentLang==='zh')
+  // Topbar
+  const tE = document.getElementById('topBtnEn')
+  const tZ = document.getElementById('topBtnZh')
+  if (tE) tE.classList.toggle('active', currentLang==='en')
+  if (tZ) tZ.classList.toggle('active', currentLang==='zh')
+})
+</script>
+</body>
+</html>
